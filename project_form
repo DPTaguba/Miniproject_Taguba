@@ -1,0 +1,87 @@
+<?php
+session_start();
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$project = [
+    'title' => '',
+    'description' => '',
+    'link' => '',
+    'image' => '',
+];
+
+if ($id > 0) {
+    $stmt = $pdo->prepare('SELECT * FROM projects WHERE id = ?');
+    $stmt->execute([$id]);
+    $project = $stmt->fetch() ?: $project;
+}
+
+$message = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $title = trim($_POST['title'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $link = trim($_POST['link'] ?? '');
+    $image = trim($_POST['image'] ?? '');
+
+    if ($title === '' || $description === '') {
+        $message = 'Title and description are required.';
+    } else {
+        if ($id > 0) {
+            $stmt = $pdo->prepare('UPDATE projects SET title = ?, description = ?, link = ?, image = ? WHERE id = ?');
+            $stmt->execute([$title, $description, $link, $image, $id]);
+            $message = 'Project updated successfully.';
+        } else {
+            $stmt = $pdo->prepare('INSERT INTO projects (title, description, link, image) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$title, $description, $link, $image]);
+            $message = 'Project added successfully.';
+            $id = $pdo->lastInsertId();
+        }
+
+        // Refresh project data
+        $stmt = $pdo->prepare('SELECT * FROM projects WHERE id = ?');
+        $stmt->execute([$id]);
+        $project = $stmt->fetch();
+    }
+}
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <title><?php echo $id ? 'Edit' : 'Add'; ?> Project</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header>
+    <h1><?php echo $id ? 'Edit' : 'Add'; ?> Project</h1>
+    <nav>
+        <a href="dashboard.php">Dashboard</a>
+        <a href="projects.php">Back to Projects</a>
+        <a href="logout.php">Logout</a>
+    </nav>
+</header>
+
+<section style="padding: 40px; color: white;">
+    <?php if ($message): ?>
+        <p style="color: #8f8;"><?php echo htmlspecialchars($message); ?></p>
+    <?php endif; ?>
+
+    <form method="POST" action="">
+        <label>Title:</label><br>
+        <input type="text" name="title" value="<?php echo htmlspecialchars($project['title']); ?>" required><br><br>
+        <label>Description:</label><br>
+        <textarea name="description" rows="6" required><?php echo htmlspecialchars($project['description']); ?></textarea><br><br>
+        <label>Link (optional):</label><br>
+        <input type="url" name="link" value="<?php echo htmlspecialchars($project['link']); ?>"><br><br>
+        <label>Image URL (optional):</label><br>
+        <input type="text" name="image" value="<?php echo htmlspecialchars($project['image']); ?>"><br><br>
+        <button type="submit"><?php echo $id ? 'Save changes' : 'Create project'; ?></button>
+    </form>
+</section>
+</body>
+</html>
